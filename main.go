@@ -11,7 +11,7 @@ import (
 type CliCommand struct {
 	Name        string
 	Description string
-	Callback    func() error
+	Callback    func(input *string) error
 }
 
 type ConfigApi struct {
@@ -45,6 +45,11 @@ func initialize(pokemonapi *pokemonapi.PokemonAPI, config *ConfigApi) {
 			Description: "Display previous page the names of 20 location areas in the Pokemon world.",
 			Callback:    commandMapBack(pokemonapi, config),
 		},
+		"explore": {
+			Name:        "explore",
+			Description: "list of all the Pokémon in area",
+			Callback:    commandExplore(pokemonapi),
+		},
 	}
 }
 
@@ -57,35 +62,51 @@ func main() {
 
 	for {
 		fmt.Print("Pokedev > ")
-		if scanner.Scan() {
-			userInput := repl.CleanInput(scanner.Text())
-			if len(userInput) == 0 {
-				continue
-			}
 
-			command, ok := commands[userInput[0]]
-			if !ok {
-				fmt.Print("Unknown command\n")
-			} else {
-				err := command.Callback()
-				if err != nil {
-					fmt.Printf("Got error: %v\n", err)
-				}
-			}
-		} else {
+		if start := scanner.Scan(); !start {
 			break
 		}
+
+		userInput := repl.CleanInput(scanner.Text())
+		if len(userInput) == 0 {
+			continue
+		}
+
+		command, ok := commands[userInput[0]]
+		if !ok {
+			fmt.Print("Unknown command\n")
+			continue
+		}
+
+		if command.Name == "explore" && len(userInput) < 2 {
+			fmt.Print("You must provide area to explore\n")
+			continue
+		}
+
+		if command.Name != "explore" {
+			err := command.Callback(nil)
+			if err != nil {
+				fmt.Printf("Got error: %v\n", err)
+			}
+			continue
+		}
+
+		err := command.Callback(&userInput[1])
+		if err != nil {
+			fmt.Printf("Got error: %v\n", err)
+		}
+
 	}
 }
 
-func commandExit() error {
+func commandExit(_ *string) error {
 	_, err := fmt.Print("Closing the Pokedex... Goodbye!\n")
 	os.Exit(0)
 
 	return err
 }
 
-func commandHelp() error {
+func commandHelp(_ *string) error {
 	_, err := fmt.Print("Welcome to the Pokedex!\nUsage:\n\n")
 
 	for _, v := range commands {
@@ -98,8 +119,8 @@ func commandHelp() error {
 	return err
 }
 
-func commandMap(pokemonapi *pokemonapi.PokemonAPI, config *ConfigApi) func() error {
-	return func() error {
+func commandMap(pokemonapi *pokemonapi.PokemonAPI, config *ConfigApi) func(_ *string) error {
+	return func(_ *string) error {
 		url := locationAreaURL
 
 		if config.Next != "" {
@@ -122,8 +143,8 @@ func commandMap(pokemonapi *pokemonapi.PokemonAPI, config *ConfigApi) func() err
 	}
 }
 
-func commandMapBack(pokemonapi *pokemonapi.PokemonAPI, config *ConfigApi) func() error {
-	return func() error {
+func commandMapBack(pokemonapi *pokemonapi.PokemonAPI, config *ConfigApi) func(_ *string) error {
+	return func(_ *string) error {
 		if config.Prev == "" {
 			fmt.Println("you're on the first page")
 			return nil
@@ -141,5 +162,23 @@ func commandMapBack(pokemonapi *pokemonapi.PokemonAPI, config *ConfigApi) func()
 		}
 
 		return nil
+	}
+}
+
+func commandExplore(pokemonapi *pokemonapi.PokemonAPI) func(area *string) error {
+	return func(area *string) error {
+		pokemons, err := pokemonapi.GetLocationAreaDetail(locationAreaURL + *area)
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Exploring %v...\n", *area)
+		fmt.Printf("Found Pokemon:\n")
+		for _, pokemon := range pokemons {
+			fmt.Printf("%v\n", pokemon)
+		}
+
+		return nil
+
 	}
 }
