@@ -1,7 +1,7 @@
-package repl_test
+package utils_test
 
 import (
-	"pokedexcli/internal/repl"
+	"pokedexcli/internal/utils"
 	"testing"
 )
 
