@@ -1,11 +1,14 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"pokedexcli/internal/pokemonapi"
 	"pokedexcli/internal/utils"
+
+	"github.com/chzyer/readline"
 )
 
 type CliCommand struct {
@@ -81,7 +84,6 @@ func initialize(pokemonapi *pokemonapi.PokemonAPI, config *ConfigApi, trainer *p
 }
 
 func main() {
-	scanner := bufio.NewScanner(os.Stdin)
 	pokemonApi := pokemonapi.NewApi()
 	config := ConfigApi{}
 	trainer := pokemonapi.PokemonTrainer{
@@ -91,14 +93,25 @@ func main() {
 
 	initialize(pokemonApi, &config, &trainer)
 
-	for {
-		fmt.Print("Pokedev > ")
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt: "Pokedev > ",
+	})
+	if err != nil {
+		log.Fatalf("Failed to creat prompt: %v", err)
+	}
+	defer rl.Close()
 
-		if start := scanner.Scan(); !start {
+	for {
+		line, err := rl.Readline()
+		if err != nil {
+			if err == readline.ErrInterrupt || err == io.EOF {
+				break
+			}
+			fmt.Printf("Error: %v\n", err)
 			break
 		}
 
-		userInput := utils.CleanInput(scanner.Text())
+		userInput := utils.CleanInput(line)
 		if len(userInput) == 0 {
 			continue
 		}
@@ -122,8 +135,8 @@ func main() {
 			continue
 		}
 
-		err := command.Callback(&userInput[1])
-		if err != nil {
+		errCallback := command.Callback(&userInput[1])
+		if errCallback != nil {
 			fmt.Printf("Got error: %v\n", err)
 		}
 
